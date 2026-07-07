@@ -19,7 +19,7 @@
 
 <br/>
 
-[🌐 Live Demo](#-live-demo--tài-khoản-thử-nghiệm) &nbsp;•&nbsp; [✨ Tính năng](#-tính-năng-nổi-bật) &nbsp;•&nbsp; [🏗️ Kiến trúc](#-kiến-trúc-hệ-thống) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack) &nbsp;•&nbsp; [📂 Code Snippets](#-code-snippets-tiêu-biểu)
+[🌐 Live Demo](https://lms-drive-project.vercel.app) &nbsp;•&nbsp; [✨ Tính năng](#-tính-năng-nổi-bật) &nbsp;•&nbsp; [🏗️ Kiến trúc](#-kiến-trúc-hệ-thống) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack) &nbsp;•&nbsp; [📂 Code Snippets](#-code-snippets-tiêu-biểu)
 
 </div>
 
@@ -48,7 +48,7 @@
 
 | | Thông tin |
 |:---|:---|
-| 🌍 **Live URL** | [https://edu-stream.vercel.app](https://edu-stream.vercel.app) *(cập nhật link thực tế của bạn)* |
+| 🌍 **Live URL** | [https://lms-drive-project.vercel.app](https://lms-drive-project.vercel.app) *(cập nhật link thực tế của bạn)* |
 | 🎬 **Video Demo (Loom)** | [👉 Xem video 3 phút demo toàn bộ hệ thống hoạt động thực tế](#) |
 | 👤 **Tài khoản Học Viên** | `recruiter@edustream.test` / `demo123456` |
 | 🔑 **Tài khoản Admin** | `admin@edustream.test` / `admin123456` |
