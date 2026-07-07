@@ -1,21 +1,11 @@
-<div align="center">
+> **Lưu ý quan trọng (Important Note):** Đây là repository chứa tài liệu thiết kế hệ thống và giới thiệu dự án (Showcase Repo). Mã nguồn cốt lõi (Core Codebase) được giữ ở chế độ Riêng tư (Private) vì mục đích thương mại và bảo mật sản phẩm. Bản giới thiệu này cung cấp thiết kế kiến trúc và một số đoạn mã nguồn tiêu biểu thể hiện tư duy kỹ thuật của dự án.
 
-# 🎓 EduStream LMS
-### Nền Tảng Học Trực Tuyến Tối Ưu Hóa Chi Phí & Bảo Mật Video Với Google Drive API
-
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-black?style=for-the-badge&logo=next.dotjs)](https://nextjs.org/)
-[![Node.js](https://img.shields.io/badge/Backend-Node.js-green?style=for-the-badge&logo=node.js)](https://nodejs.org/)
-[![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-darkgreen?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/)
-[![Google Drive](https://img.shields.io/badge/Hosting-Google%20Drive-blue?style=for-the-badge&logo=googledrive)](https://www.google.com/drive/)
-[![Licence](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](https://choosealicense.com/)
-
-<p align="center">
-  Một giải pháp tối ưu hóa chi phí vận hành lưu trữ video, bảo mật nội dung chống tải trái phép, kết hợp thanh toán tự động thời gian thực (realtime) dành cho các cá nhân kinh doanh khóa học trực tuyến.
-</p>
-
-[🌐 Trải Nghiệm Demo Trực Tuyến](#-trải-nghiệm-demo-trực-tuyến) • [🏗️ Thiết Kế Kiến Trúc](#-thiết-kế-kiến-trúc-hệ-thống) • [⚙️ Hướng Dẫn Cài Đặt](#-hướng-dẫn-cài-đặt-local) • [📂 Các Snippet Code Tiêu Biểu](#-mã-nguồn-tiêu-biểu-code-snippets)
-
-</div>
+> [!IMPORTANT]
+> **Tại sao dự án này được giữ ở chế độ Riêng tư (Private)?**
+> * **Mục đích thương mại & Doanh thu:** Dự án hiện đang được triển khai thực tế phục vụ hoạt động kinh doanh khóa học có thu phí. Việc công khai toàn bộ mã nguồn sẽ ảnh hưởng trực tiếp đến tính độc quyền và doanh thu sản phẩm.
+> * **Bảo vệ thuật toán cốt lõi:** Cơ chế bảo mật video chặn tải lậu (anti-downloading) từ Google Drive và giải pháp cân bằng tải (load balancing) luân chuyển các API Nodes là giải pháp kỹ thuật tự phát triển cần bảo vệ bản quyền.
+> * **Bảo mật hệ thống:** Tránh lộ cấu trúc tích hợp sâu với cổng thanh toán ngân hàng tự động (SePay Webhooks) và các chính sách bảo mật nội bộ.
+> * **Giải pháp hỗ trợ đánh giá:** Để nhà tuyển dụng có thể đánh giá năng lực lập trình và tư duy thiết kế, các đoạn mã nguồn then chốt nhất của dự án đã được làm sạch (lược bỏ thông tin nhạy cảm) và lưu tại thư mục [`/snippets`](snippets/).
 
 ---
 
