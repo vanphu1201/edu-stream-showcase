@@ -48,7 +48,7 @@
 
 | | Thông tin |
 |:---|:---|
-| 🌍 **Live URL** | [https://lms-drive-project.vercel.app](https://lms-drive-project.vercel.app) *(cập nhật link thực tế của bạn)* |
+| 🌍 **Live URL** | [https://lms-drive-project.vercel.app](https://lms-drive-project.vercel.app) |
 | 🎬 **Video Demo (Loom)** | [👉 Xem video 3 phút demo toàn bộ hệ thống hoạt động thực tế](#) |
 | 👤 **Tài khoản Học Viên** | `recruiter@edustream.test` / `demo123456` |
 | 🔑 **Tài khoản Admin** | `admin@edustream.test` / `admin123456` |
