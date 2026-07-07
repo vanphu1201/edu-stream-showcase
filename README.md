@@ -1,67 +1,148 @@
-# EduStream LMS - Google Drive Video Streaming & Automated Payment Platform
+<div align="center">
 
-> **Lưu ý quan trọng (Important Note):** Đây là repository chứa tài liệu thiết kế hệ thống và giới thiệu dự án (Showcase Repo). Mã nguồn cốt lõi (Core Codebase) được giữ ở chế độ Riêng tư (Private) vì mục đích thương mại và bảo mật sản phẩm. Bản giới thiệu này cung cấp thiết kế kiến trúc và một số đoạn mã nguồn tiêu biểu thể hiện tư duy kỹ thuật của dự án.
+# 🎓 EduStream LMS
+### Nền Tảng Học Trực Tuyến Tối Ưu Hóa Chi Phí & Bảo Mật Video Với Google Drive API
 
----
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-black?style=for-the-badge&logo=next.dotjs)](https://nextjs.org/)
+[![Node.js](https://img.shields.io/badge/Backend-Node.js-green?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-darkgreen?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/)
+[![Google Drive](https://img.shields.io/badge/Hosting-Google%20Drive-blue?style=for-the-badge&logo=googledrive)](https://www.google.com/drive/)
+[![Licence](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](https://choosealicense.com/)
 
-## 📌 Giới thiệu dự án
-**EduStream LMS** là nền tảng quản lý học tập trực tuyến (LMS) tối ưu hóa chi phí vận hành bằng cách sử dụng **Google Drive** làm máy chủ lưu trữ và truyền phát (streaming) video bảo mật cao. Nền tảng được tích hợp tính năng đồng bộ hóa bài giảng tự động, AI trợ lý học tập trực tiếp, và quy trình thanh toán kích hoạt tức thì.
+<p align="center">
+  Một giải pháp tối ưu hóa chi phí vận hành lưu trữ video, bảo mật nội dung chống tải trái phép, kết hợp thanh toán tự động thời gian thực (realtime) dành cho các cá nhân kinh doanh khóa học trực tuyến.
+</p>
 
-* **Bản chạy thử (Live Demo):** [Link demo dự án] *(Ví dụ: https://edustream.io)*
-* **Tài khoản Recruiter Test:** `recruiter@edustream.test` / Mật khẩu: `123456`
-* **Video giới thiệu (Loom Walkthrough):** [Link video giới thiệu hoạt động thực tế]
+[🌐 Trải Nghiệm Demo Trực Tuyến](#-trải-nghiệm-demo-trực-tuyến) • [🏗️ Thiết Kế Kiến Trúc](#-thiết-kế-kiến-trúc-hệ-thống) • [⚙️ Hướng Dẫn Cài Đặt](#-hướng-dẫn-cài-đặt-local) • [📂 Các Snippet Code Tiêu Biểu](#-mã-nguồn-tiêu-biểu-code-snippets)
 
----
-
-## 🚀 Tính năng cốt lõi
-
-### 1. Truyền Phát Video Bảo Mật Từ Google Drive (Secure Streaming)
-* **Chống Tải Chùa (Anti-downloading):** Hệ thống không trả về đường dẫn (URL) trực tiếp của Google Drive cho client. Thay vào đó, backend đóng vai trò là một proxy streaming, chia nhỏ video thành các chunks dữ liệu và gửi dưới dạng binary stream kèm theo token bảo mật xác thực phiên làm việc.
-* **Cơ chế dự phòng (Drive Node Load Balancing):** Hỗ trợ cấu hình multi-node Google Drive API. Khi một node vượt quá giới hạn băng thông (quota API), backend sẽ tự động luân chuyển sang node tiếp theo để đảm bảo luồng xem không bị gián đoạn.
-
-### 2. Tự Động Hóa Đồng Bộ Bài Giảng (Google Drive Sync Engine)
-* **One-Click Sync:** Admin chỉ cần cấu hình ID thư mục khóa học trên Google Drive, hệ thống sẽ tự động quét đệ quy các thư mục con (Chương) và file video/tài liệu (Bài học) để đồng bộ vào MongoDB.
-* **Phân tích siêu dữ liệu:** Tự động lọc các ký tự đặc biệt, cấu trúc hóa thứ tự bài giảng theo đúng định dạng được sắp xếp trên Drive.
-
-### 3. Quy Trình Thanh Toán & Kích Hoạt Tự Động (Automation Payment Flow)
-* **SePay Webhook Integration:** Tự động sinh mã QR thanh toán nhanh (VietQR) tương ứng với từng mã đơn hàng và số tiền chính xác.
-* **Kích hoạt tức thì:** Backend nhận thông báo biến động số dư qua webhook thời gian thực (realtime webhook), phân tích cú pháp đơn hàng và mở khóa khóa học cho học viên trong vòng 3 giây mà không cần admin duyệt thủ công.
-
-### 4. Shopping Cart & Không Gian Học Tập Trực Quan
-* **Shopping Cart:** Quản lý giỏ hàng phía Client bằng React Context & LocalStorage, cho phép thêm nhanh nhiều khóa học và tiến hành thanh toán tập trung.
-* **Trình phát bài học cao cấp:** Tích hợp trình phát video Plyr tối giản, thanh sidebar bài giảng dạng accordion tự động cuộn độc lập, bộ ghi chú (Notes) đánh dấu mốc thời gian (timestamp) thông minh.
-* **AI Tutor Chatbot:** Trợ lý học tập sử dụng Gemini/OpenAI API được nhúng sẵn trên giao diện, hỗ trợ học viên giải đáp kiến thức liên quan tới nội dung khóa học ngay tại chỗ.
+</div>
 
 ---
 
-## 🏗️ Kiến trúc hệ thống (System Architecture)
+## 📸 Hình ảnh & Video thực tế (Demo UI/UX)
+
+*Để có cái nhìn tổng quan nhất về hệ thống hoạt động thực tế, bạn có thể xem các ảnh chụp màn hình và luồng chức năng bên dưới:*
+
+| 🏠 Trang Chủ Đột Phá | 🛒 Giỏ Hàng & Sidebar Bài Giảng |
+|:---:|:---:|
+| ![Trang chủ EduStream](assets/homepage_preview.png) | ![Giỏ hàng & Bài giảng](assets/cart_sidebar_preview.png) |
+| *Giao diện tối giản, hiển thị nguyên gốc giá khóa học.* | *Giỏ hàng Client-side & Sidebar bài học Accordion.* |
+
+| 💳 Luồng Thanh Toán Tự Động VietQR | 🤖 Trò chuyện cùng AI Tutor |
+|:---:|:---:|
+| ![Thanh toán VietQR](assets/vietqr_payment_preview.png) | ![Trợ lý AI Tutor](assets/ai_tutor_preview.png) |
+| *Sinh mã QR động SePay và hỗ trợ nút bypass demo.* | *Chatbot AI tương tác trực tiếp giải đáp bài học.* |
+
+> [!TIP]
+> **Video Walkthrough (Loom):** [👉 Click vào đây để xem video vận hành hệ thống thực tế (3 phút)]()
+
+---
+
+## ✨ Điểm nhấn kỹ thuật & Tính năng nổi bật
+
+### 🔒 1. Truyền phát video bảo mật từ Google Drive (Secure Streaming Proxy)
+* **Ngăn chặn lấy cắp tài nguyên:** Hệ thống hoàn toàn giấu các đường link trực tiếp của Google Drive. Backend đóng vai trò như một proxy trung gian, xác thực JWT của user, đọc stream nhị phân từ API Drive và truyền tiếp (pipe) về Client.
+* **Hỗ trợ Range Request (HTTP 206):** Giúp tua video mượt mà trên mọi thiết bị di động và máy tính, chỉ tải phần video đang xem nhằm tiết kiệm băng thông tối đa.
+* **Luân chuyển Node (Load Balancing):** Tự động luân chuyển token API giữa các tài khoản Google Drive khác nhau khi một tài khoản chạm giới hạn quota đọc hàng ngày của Google.
+
+### ⚡ 2. Thanh toán tự động (VietQR & Realtime Webhooks)
+* **Kích hoạt sau 3 giây:** Tích hợp API của **SePay** để lắng nghe biến động tài khoản ngân hàng. Khi học viên quét mã QR chuyển khoản đúng nội dung đơn hàng, webhook sẽ phát tín hiệu kích hoạt tức thì.
+* **Đồng bộ hóa User Profile thời gian thực:** Đồng bộ tức thì quyền sở hữu khóa học mới vào LocalStorage và State của học viên, người dùng lập tức có thể vào học ngay mà không cần reload trang.
+
+### 📁 3. Trình đồng bộ hóa bài giảng một click (Drive Sync Engine)
+* Admin chỉ cần khai báo ID của thư mục gốc của khóa học trên Google Drive.
+* Backend tự động phân tích cây thư mục đệ quy, phân loại và chuẩn hóa tên chương học/bài học và đồng bộ trực tiếp vào MongoDB Atlas.
+
+### 🛒 4. Giỏ hàng Client-Side tối ưu
+* Sử dụng **React Context** kết hợp **LocalStorage** giúp lưu trữ giỏ hàng bền bỉ, hỗ trợ thêm nhanh nhiều khóa học vào giỏ hàng và thanh toán gộp chỉ bằng 1 giao dịch quét mã.
+
+---
+
+## 🏗️ Thiết kế kiến trúc hệ thống
 
 ```mermaid
-graph TD
-    Client[Next.js Client] -->|1. Request Video Stream| Backend[Express Backend API]
-    Backend -->|2. Check Auth & Purchase| DB[(MongoDB Atlas)]
-    Backend -->|3. Fetch Chunked Data| GDrive[Google Drive Multi-Nodes API]
-    GDrive -->|4. Return Binary Buffer| Backend
-    Backend -->|5. Stream Buffer securely| Client
-    
-    SePay[SePay Webhook] -->|Instant Payment Notify| Backend
-    Backend -->|Unlock Course & Sync User| DB
+sequenceDiagram
+    autonumber
+    actor Student as Học Viên
+    participant Frontend as Next.js Client
+    participant Backend as Express Backend API
+    participant DB as MongoDB Atlas
+    participant GDrive as Google Drive API Node
+    participant SePay as Cổng SePay Gateway
+
+    Student->>Frontend: Chọn mua khóa học & Quét VietQR
+    SePay-->>Backend: Gửi Webhook xác nhận chuyển khoản (Mã đơn hàng)
+    Backend->>DB: Cập nhật trạng thái đơn hàng (Paid) & Mở khóa học cho User
+    Backend-->>Frontend: Trả trạng thái thành công thông qua Polling
+    Frontend->>Backend: Yêu cầu stream bài học (Kèm JWT Token & Course ID)
+    Backend->>DB: Kiểm tra quyền sở hữu của User
+    DB-->>Backend: Xác nhận có quyền truy cập
+    Backend->>GDrive: Gửi yêu cầu lấy file (Range Header bytes=start-end)
+    GDrive-->>Backend: Trả về luồng Binary Stream dữ liệu
+    Backend-->>Frontend: Pipe stream dữ liệu về trình phát video Plyr
+    Frontend->>Student: Phát video bài học bảo mật
 ```
 
 ---
 
 ## 🛠️ Công nghệ sử dụng (Technology Stack)
 
-* **Frontend:** Next.js (App Router), React, TailwindCSS, Lucide Icons, Plyr Player.
-* **Backend:** Node.js, Express, Mongoose (MongoDB Atlas), Google APIs Client.
-* **Security & Optimization:** Helmet (CORS policy control), Express Rate Limit, Gzip Compression, JWT Auth.
-* **Third-party integrations:** Google Drive API v3, SePay Gateway, OpenAI/Gemini SDK.
+### Frontend (Client-side)
+* **Framework:** Next.js 14 (App Router)
+* **Styling:** Tailwind CSS, CSS Variables
+* **Icons:** Lucide React
+* **Player:** Plyr React (Custom UI/UX)
+
+### Backend (Server-side)
+* **Runtime:** Node.js, Express Framework
+* **Database:** MongoDB Atlas & Mongoose ODM
+* **Security:** Helmet CSP, Express Rate Limit, JWT Authentication
+* **APIs:** Google APIs Client library v3, SePay Webhook integration
+
+---
+
+## ⚙️ Hướng dẫn cài đặt local (Local Development Setup)
+
+### 1. Cấu hình Backend
+Tạo file `/backend/.env` với các tham số sau:
+```env
+PORT=5002
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/edustream
+JWT_SECRET=your_jwt_super_secret_key
+SEPAY_WEBHOOK_APIKEY=sepay_api_key_cua_ban
+BANK_NAME=your_bank_name
+BANK_ACCOUNT_NUMBER=your_bank_account
+BANK_ACCOUNT_NAME=your_account_name
+
+# JSON chuỗi của các Google Drive Node
+GOOGLE_NODES=[{"id":"node_01","client_id":"...","client_secret":"...","refresh_token":"..."}]
+```
+Cài đặt dependencies và chạy backend:
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+### 2. Cấu hình Frontend
+Tạo file `/frontend/.env.local`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5002
+```
+Cài đặt dependencies và chạy frontend:
+```bash
+cd ../frontend
+npm install
+npm run dev
+```
+Truy cập ứng dụng tại địa chỉ: `http://localhost:3000` (hoặc `http://localhost:3001` nếu port 3000 bị chiếm dụng).
 
 ---
 
 ## 📂 Mã nguồn tiêu biểu (Code Snippets)
-Để xem chi tiết cấu trúc triển khai của các mô-đun quan trọng, vui lòng tham khảo thư mục `/snippets` trong repository này:
-1. **[Backend Video Stream Controller](snippets/streamController.js):** Quản lý luồng stream video chunk từ Google Drive API và đóng vai trò proxy bảo mật bảo vệ tài nguyên video.
-2. **[Backend Payment Controller](snippets/paymentController.js):** Xử lý quy trình tạo đơn hàng thanh toán qua cổng SePay và tiếp nhận webhook kích hoạt tự động.
-3. **[Frontend Cart Context](snippets/CartContext.jsx):** Quản lý trạng thái giỏ hàng đồng bộ liên tục với local storage và giao diện navbar phía học viên.
-4. **[Frontend Auth Context](snippets/AuthContext.jsx):** Quản lý phiên đăng nhập và cơ chế tự động đồng bộ hóa thông tin người dùng với máy chủ theo thời gian thực.
+
+Mã nguồn được cấu trúc sạch sẽ và tối ưu hóa hiệu năng, tham khảo các file tiêu biểu trong thư mục `/snippets`:
+1. **[Backend Video Stream Controller](snippets/streamController.js):** Xử lý Range Request để tua video và pipe dữ liệu binary từ Drive API về Express.
+2. **[Backend Payment Controller](snippets/paymentController.js):** Tiếp nhận webhook biến động số dư và xử lý logic kích hoạt khóa học tự động.
+3. **[Frontend Cart Context](snippets/CartContext.jsx):** Đồng bộ hóa giỏ hàng và quản lý trạng thái client-side.
+4. **[Frontend Auth Context](snippets/AuthContext.jsx):** Cơ chế làm mới trạng thái sở hữu của học viên trên ứng dụng khi giao dịch hoàn tất.
