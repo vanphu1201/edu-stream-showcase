@@ -1,14 +1,19 @@
 /**
- * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy
+ * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Token Caching)
  * 
  * Tuyến phòng thủ biên (Edge Network) nhận yêu cầu stream video, xác thực JWT token của
  * học viên, tự động lấy Access Token mới từ Google OAuth và truyền phát (pipe) luồng
  * dữ liệu video nhị phân trực tiếp từ Google Drive API về Client.
  * 
  * - Giải phóng 100% băng thông cho máy chủ chính (Render Free).
+ * - Sử dụng V8 Isolate Global Memory để cache Google Access Token (tiết kiệm 99% request đến Google OAuth).
  * - Ẩn hoàn toàn ID tài khoản và cấu hình Google Drive Node.
  * - Hỗ trợ phân đoạn Range Requests (bytes=...) giúp tua video mượt mà.
  */
+
+// Bộ nhớ đệm toàn cục (Isolate memory) để tránh Spam gửi request tới Google OAuth
+let cachedAccessToken = null;
+let accessTokenExpiry = 0; // Epoch timestamp (milliseconds)
 
 export default {
   async fetch(request, env) {
@@ -48,7 +53,7 @@ export default {
     const node = GOOGLE_NODES[Math.floor(Math.random() * GOOGLE_NODES.length)];
 
     try {
-      // 4. Lấy Access Token từ Google OAuth qua Refresh Token của Node
+      // 4. Lấy Access Token từ Google OAuth qua Refresh Token (Đã tối ưu hóa Cache)
       const accessToken = await getAccessToken(node);
 
       // 5. Khởi tạo luồng truyền phát từ Google Drive API
@@ -119,9 +124,15 @@ async function verifyJWT(token, secret) {
 }
 
 /**
- * Lấy Access Token Google API mới nhất sử dụng cơ chế OAuth 2.0
+ * Lấy Access Token Google API mới nhất sử dụng cơ chế OAuth 2.0 (Hỗ trợ Cache tối ưu)
  */
 async function getAccessToken(node) {
+  const now = Date.now();
+  // Nếu Access Token đã được cache và thời gian hết hạn còn tối thiểu 5 phút
+  if (cachedAccessToken && accessTokenExpiry > now + 5 * 60 * 1000) {
+    return cachedAccessToken;
+  }
+
   const tokenUrl = "https://oauth2.googleapis.com/token";
   const body = new URLSearchParams({
     client_id: node.client_id,
@@ -141,5 +152,12 @@ async function getAccessToken(node) {
   }
 
   const data = await res.json();
-  return data.access_token;
+  
+  // Lưu Cache
+  cachedAccessToken = data.access_token;
+  const expiresIn = data.expires_in || 3600; // Mặc định là 1 giờ (3600s)
+  accessTokenExpiry = now + (expiresIn * 1000);
+
+  console.log("=> [Cloudflare Worker Cache] Đã refresh Google Access Token mới và ghi vào cache.");
+  return cachedAccessToken;
 }
