@@ -1,5 +1,5 @@
 /**
- * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Token Caching)
+ * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Token Caching & Claim Verification)
  * 
  * Tuyến phòng thủ biên (Edge Network) nhận yêu cầu stream video, xác thực JWT token của
  * học viên, tự động lấy Access Token mới từ Google OAuth và truyền phát (pipe) luồng
@@ -7,7 +7,7 @@
  * 
  * - Giải phóng 100% băng thông cho máy chủ chính (Render Free).
  * - Sử dụng V8 Isolate Global Memory để cache Google Access Token (tiết kiệm 99% request đến Google OAuth).
- * - Ẩn hoàn toàn ID tài khoản và cấu hình Google Drive Node.
+ * - Bảo mật nâng cao: Xác thực chữ ký + Thời gian hết hạn (exp) + Trùng khớp File ID được cấp phép.
  * - Hỗ trợ phân đoạn Range Requests (bytes=...) giúp tua video mượt mà.
  */
 
@@ -37,16 +37,26 @@ export default {
       return new Response("Missing id or token parameter", { status: 400, headers: corsHeaders });
     }
 
-    // 2. Xác thực chữ ký token JWT ngay tại Edge (sử dụng Web Crypto API)
-    const isValid = await verifyJWT(token, env.JWT_SECRET);
+    // 2. Xác thực chữ ký token JWT + Hạn dùng + Khóa chặt File ID ngay tại Edge
+    const isValid = await verifyJWT(token, env.JWT_SECRET, id);
     if (!isValid) {
       return new Response("Unauthorized", { status: 401, headers: corsHeaders });
     }
 
-    // 3. Lấy cấu hình các Node Google Drive từ môi trường Worker
-    const GOOGLE_NODES = JSON.parse(env.GOOGLE_NODES || "[]");
-    if (GOOGLE_NODES.length === 0) {
-      return new Response("Google nodes configuration missing", { status: 500, headers: corsHeaders });
+    // 3. Lấy cấu hình các Node Google Drive từ môi trường Worker (Hỗ trợ cả dạng String và JSON Binding)
+    let GOOGLE_NODES = [];
+    try {
+      if (typeof env.GOOGLE_NODES === 'object' && env.GOOGLE_NODES !== null) {
+        GOOGLE_NODES = env.GOOGLE_NODES;
+      } else if (typeof env.GOOGLE_NODES === 'string') {
+        GOOGLE_NODES = JSON.parse(env.GOOGLE_NODES);
+      }
+    } catch (err) {
+      return new Response(`Worker config parse error: ${err.message}`, { status: 500, headers: corsHeaders });
+    }
+
+    if (!Array.isArray(GOOGLE_NODES) || GOOGLE_NODES.length === 0) {
+      return new Response("Google nodes configuration missing or invalid format", { status: 500, headers: corsHeaders });
     }
     
     // Tự động xoay vòng hoặc chọn Node ngẫu nhiên (Load Balancing)
@@ -89,13 +99,15 @@ export default {
 
 /**
  * Xác thực token JWT tại mạng biên sử dụng Web Crypto API bảo mật cao
+ * Kiểm tra: Chữ ký hợp lệ, Token chưa hết hạn (exp), Token khớp với File ID yêu cầu.
  */
-async function verifyJWT(token, secret) {
+async function verifyJWT(token, secret, requestedFileId) {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
     const [headerB64, payloadB64, signatureB64] = parts;
 
+    // A. Xác thực tính toàn vẹn chữ ký HMAC-SHA256
     const encoder = new TextEncoder();
     const data = encoder.encode(`${headerB64}.${payloadB64}`);
     const keyData = encoder.encode(secret);
@@ -117,7 +129,30 @@ async function verifyJWT(token, secret) {
     }
 
     const signature = base64urlToUint8Array(signatureB64);
-    return await crypto.subtle.verify("HMAC", key, signature, data);
+    const isSignatureValid = await crypto.subtle.verify("HMAC", key, signature, data);
+    if (!isSignatureValid) return false;
+
+    // B. Giải mã Payload để kiểm tra thời gian và quyền truy cập file cụ thể
+    function base64urlToString(base64urlString) {
+      let base64 = base64urlString.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = (4 - (base64.length % 4)) % 4;
+      base64 += '='.repeat(pad);
+      return atob(base64);
+    }
+
+    const payload = JSON.parse(base64urlToString(payloadB64));
+
+    // 1. Kiểm tra thời hạn Token (exp)
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      return false;
+    }
+
+    // 2. Kiểm tra tính trùng khớp của File ID (Chống đổi ID để xem chùa các video khác)
+    if (payload.fileId && payload.fileId !== requestedFileId) {
+      return false;
+    }
+
+    return true;
   } catch (e) {
     return false;
   }
@@ -158,6 +193,5 @@ async function getAccessToken(node) {
   const expiresIn = data.expires_in || 3600; // Mặc định là 1 giờ (3600s)
   accessTokenExpiry = now + (expiresIn * 1000);
 
-  console.log("=> [Cloudflare Worker Cache] Đã refresh Google Access Token mới và ghi vào cache.");
   return cachedAccessToken;
 }
