@@ -1,5 +1,5 @@
 /**
- * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Token Caching & Claim Verification)
+ * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Edge Bypass & Token Caching)
  * 
  * Tuyến phòng thủ biên (Edge Network) nhận yêu cầu stream video, xác thực JWT token của
  * học viên, tự động lấy Access Token mới từ Google OAuth và truyền phát (pipe) luồng
@@ -7,6 +7,7 @@
  * 
  * - Giải phóng 100% băng thông cho máy chủ chính (Render Free).
  * - Sử dụng V8 Isolate Global Memory để cache Google Access Token (tiết kiệm 99% request đến Google OAuth).
+ * - Tự động kích hoạt cơ chế Edge Bypass (get_video_info) ngay tại mạng biên nếu tệp bị hạn chế tải xuống.
  * - Bảo mật nâng cao: Xác thực chữ ký + Thời gian hết hạn (exp) + Trùng khớp File ID được cấp phép.
  * - Hỗ trợ phân đoạn Range Requests (bytes=...) giúp tua video mượt mà.
  */
@@ -14,6 +15,9 @@
 // Bộ nhớ đệm toàn cục (Isolate memory) để tránh Spam gửi request tới Google OAuth
 let cachedAccessToken = null;
 let accessTokenExpiry = 0; // Epoch timestamp (milliseconds)
+
+// Cache lưu videoplayback URL cho các video bị giới hạn tải xuống
+const videoplaybackCache = new Map();
 
 export default {
   async fetch(request, env) {
@@ -77,8 +81,14 @@ export default {
         headers["Range"] = rangeHeader;
       }
 
-      // Fetch stream từ Google Server
-      const driveResponse = await fetch(driveUrl, { headers });
+      // Thử tải tệp thông thường từ Google Server
+      let driveResponse = await fetch(driveUrl, { headers });
+
+      // Nếu gặp lỗi bị hạn chế tải xuống (403 Forbidden hoặc 401 do chính sách Google Drive), tự động chạy Bypass ngay tại Edge
+      if (driveResponse.status === 403 || driveResponse.status === 401) {
+        console.warn(`=> [Edge Bypass] Phát hiện File ID ${id} bị giới hạn tải (Status ${driveResponse.status}). Đang tiến hành Bypass...`);
+        driveResponse = await getBypassStream(node, id, rangeHeader);
+      }
 
       // Gộp các header CORS và thông tin phân đoạn
       const responseHeaders = new Headers(driveResponse.headers);
@@ -194,4 +204,76 @@ async function getAccessToken(node) {
   accessTokenExpiry = now + (expiresIn * 1000);
 
   return cachedAccessToken;
+}
+
+/**
+ * Thực hiện lấy link stream bypass get_video_info trực tiếp tại Edge Network
+ */
+async function getBypassStream(node, id, rangeHeader) {
+  const now = Date.now();
+  let cached = videoplaybackCache.get(id);
+
+  if (cached && cached.expiresAt > now) {
+    console.log(`=> [Edge Bypass Cache HIT] Tái sử dụng videoplayback URL cho File ID: ${id}`);
+  } else {
+    console.log(`=> [Edge Bypass Cache MISS] Đang gọi get_video_info cho File ID: ${id}...`);
+    const accessToken = await getAccessToken(node);
+    const infoUrl = `https://drive.google.com/u/0/get_video_info?docid=${id}&drive_originator_app=303`;
+
+    const infoRes = await fetch(infoUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!infoRes.ok) {
+      throw new Error(`Google API get_video_info trả về mã lỗi: ${infoRes.status}`);
+    }
+
+    const body = await infoRes.text();
+    const contentList = body.split("&");
+    let videoUrl = null;
+    for (const content of contentList) {
+      if (content.includes("videoplayback")) {
+        const unescaped = decodeURIComponent(content);
+        videoUrl = unescaped.split("|").pop();
+        break;
+      }
+    }
+
+    if (!videoUrl) {
+      throw new Error("Không tìm thấy videoplayback URL trong dữ liệu trả về.");
+    }
+
+    // Lấy thời gian hết hạn dự phòng từ URL
+    let expiresAt = now + 2 * 60 * 60 * 1000;
+    try {
+      const match = videoUrl.match(/[?&]expire=([0-9]+)/);
+      if (match) {
+        expiresAt = (parseInt(match[1]) - 300) * 1000;
+      }
+    } catch (_) {}
+
+    // Lấy cookies đi kèm
+    const cookies = infoRes.headers.get("set-cookie") || "";
+
+    cached = { videoUrl, cookies, expiresAt };
+    videoplaybackCache.set(id, cached);
+  }
+
+  // Khởi tạo request tải luồng stream từ videoplayback của Google
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  };
+
+  if (rangeHeader) {
+    headers['Range'] = rangeHeader;
+  }
+  if (cached.cookies) {
+    headers['Cookie'] = cached.cookies;
+  }
+
+  // Cloudflare Workers tự động điều hướng theo 302 Redirect của Google nên không cần theo dõi thủ công
+  return await fetch(cached.videoUrl, { headers });
 }
