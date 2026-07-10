@@ -1,5 +1,5 @@
 /**
- * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Edge Bypass & Token Caching)
+ * CLOUDFLARE WORKER: Secure Google Drive Stream Proxy (Optimized with Edge Bypass & 2-Level Caching)
  * 
  * Tuyến phòng thủ biên (Edge Network) nhận yêu cầu stream video, xác thực JWT token của
  * học viên, tự động lấy Access Token mới từ Google OAuth và truyền phát (pipe) luồng
@@ -8,6 +8,7 @@
  * - Giải phóng 100% băng thông cho máy chủ chính (Render Free).
  * - Sử dụng V8 Isolate Global Memory để cache Google Access Token (tiết kiệm 99% request đến Google OAuth).
  * - Tự động kích hoạt cơ chế Edge Bypass (get_video_info) ngay tại mạng biên nếu tệp bị hạn chế tải xuống.
+ * - Tích hợp 2 lớp Cache (Isolate Memory L1 + Cloudflare Cache API L2) triệt tiêu hoàn toàn độ trễ API.
  * - Bảo mật nâng cao: Xác thực chữ ký + Thời gian hết hạn (exp) + Trùng khớp File ID được cấp phép.
  * - Hỗ trợ phân đoạn Range Requests (bytes=...) giúp tua video mượt mà.
  */
@@ -16,7 +17,7 @@
 let cachedAccessToken = null;
 let accessTokenExpiry = 0; // Epoch timestamp (milliseconds)
 
-// Cache lưu videoplayback URL cho các video bị giới hạn tải xuống
+// Cache L1 (Isolate Memory) lưu videoplayback URL cho các video bị giới hạn tải xuống
 const videoplaybackCache = new Map();
 
 export default {
@@ -207,59 +208,98 @@ async function getAccessToken(node) {
 }
 
 /**
- * Thực hiện lấy link stream bypass get_video_info trực tiếp tại Edge Network
+ * Thực hiện lấy link stream bypass get_video_info trực tiếp tại Edge Network (2-Level Cache)
  */
 async function getBypassStream(node, id, rangeHeader) {
   const now = Date.now();
   let cached = videoplaybackCache.get(id);
 
+  // 1. Thử lấy từ V8 Isolate Memory L1 Cache trước (Nhanh nhất)
   if (cached && cached.expiresAt > now) {
-    console.log(`=> [Edge Bypass Cache HIT] Tái sử dụng videoplayback URL cho File ID: ${id}`);
+    console.log(`=> [Edge Memory L1 HIT] File ID: ${id}`);
   } else {
-    console.log(`=> [Edge Bypass Cache MISS] Đang gọi get_video_info cho File ID: ${id}...`);
-    const accessToken = await getAccessToken(node);
-    const infoUrl = `https://drive.google.com/u/0/get_video_info?docid=${id}&drive_originator_app=303`;
-
-    const infoRes = await fetch(infoUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    if (!infoRes.ok) {
-      throw new Error(`Google API get_video_info trả về mã lỗi: ${infoRes.status}`);
-    }
-
-    const body = await infoRes.text();
-    const contentList = body.split("&");
-    let videoUrl = null;
-    for (const content of contentList) {
-      if (content.includes("videoplayback")) {
-        const unescaped = decodeURIComponent(content);
-        videoUrl = unescaped.split("|").pop();
-        break;
-      }
-    }
-
-    if (!videoUrl) {
-      throw new Error("Không tìm thấy videoplayback URL trong dữ liệu trả về.");
-    }
-
-    // Lấy thời gian hết hạn dự phòng từ URL
-    let expiresAt = now + 2 * 60 * 60 * 1000;
+    // 2. Thử lấy từ Cloudflare Regional Cache API L2 (Chung cho các Isolate cùng khu vực)
+    const cache = caches.default;
+    const cacheKey = new Request(`https://cache.local/videoplayback/${id}`);
+    
     try {
-      const match = videoUrl.match(/[?&]expire=([0-9]+)/);
-      if (match) {
-        expiresAt = (parseInt(match[1]) - 300) * 1000;
+      const cacheResponse = await cache.match(cacheKey);
+      if (cacheResponse) {
+        const data = await cacheResponse.json();
+        if (data.expiresAt > now) {
+          cached = data;
+          videoplaybackCache.set(id, cached);
+          console.log(`=> [Edge Cache API L2 HIT] File ID: ${id}`);
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn("=> [Cache API Error] Lỗi đọc cache:", e.message);
+    }
 
-    // Lấy cookies đi kèm
-    const cookies = infoRes.headers.get("set-cookie") || "";
+    // 3. Cache Miss -> Gọi Google API và Lưu vào cả 2 lớp Cache
+    if (!cached) {
+      console.log(`=> [Edge Cache MISS] Đang gọi get_video_info cho File ID: ${id}...`);
+      const accessToken = await getAccessToken(node);
+      const infoUrl = `https://drive.google.com/u/0/get_video_info?docid=${id}&drive_originator_app=303`;
 
-    cached = { videoUrl, cookies, expiresAt };
-    videoplaybackCache.set(id, cached);
+      const infoRes = await fetch(infoUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!infoRes.ok) {
+        throw new Error(`Google API get_video_info trả về mã lỗi: ${infoRes.status}`);
+      }
+
+      const body = await infoRes.text();
+      const contentList = body.split("&");
+      let videoUrl = null;
+      for (const content of contentList) {
+        if (content.includes("videoplayback")) {
+          const unescaped = decodeURIComponent(content);
+          videoUrl = unescaped.split("|").pop();
+          break;
+        }
+      }
+
+      if (!videoUrl) {
+        throw new Error("Không tìm thấy videoplayback URL trong dữ liệu trả về.");
+      }
+
+      // Lấy thời gian hết hạn dự phòng từ URL
+      let expiresAt = now + 2 * 60 * 60 * 1000;
+      try {
+        const match = videoUrl.match(/[?&]expire=([0-9]+)/);
+        if (match) {
+          expiresAt = (parseInt(match[1]) - 300) * 1000;
+        }
+      } catch (_) {}
+
+      // Lấy cookies đi kèm
+      const cookies = infoRes.headers.get("set-cookie") || "";
+
+      cached = { videoUrl, cookies, expiresAt };
+      
+      // Lưu L1 Memory
+      videoplaybackCache.set(id, cached);
+
+      // Lưu L2 Cache API
+      try {
+        const cacheSeconds = Math.max(60, Math.floor((expiresAt - now) / 1000));
+        const responseToCache = new Response(JSON.stringify(cached), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': `public, max-age=${cacheSeconds}`
+          }
+        });
+        await cache.put(cacheKey, responseToCache);
+        console.log(`=> [Edge Cache API L2 SET] Đã lưu cache cho File ID: ${id} trong ${cacheSeconds}s`);
+      } catch (e) {
+        console.warn("=> [Cache API Error] Lỗi ghi cache:", e.message);
+      }
+    }
   }
 
   // Khởi tạo request tải luồng stream từ videoplayback của Google
@@ -274,6 +314,5 @@ async function getBypassStream(node, id, rangeHeader) {
     headers['Cookie'] = cached.cookies;
   }
 
-  // Cloudflare Workers tự động điều hướng theo 302 Redirect của Google nên không cần theo dõi thủ công
   return await fetch(cached.videoUrl, { headers });
 }
