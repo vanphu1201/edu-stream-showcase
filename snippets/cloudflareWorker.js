@@ -71,24 +71,26 @@ export default {
       // 4. Lấy Access Token từ Google OAuth qua Refresh Token (Đã tối ưu hóa Cache)
       const accessToken = await getAccessToken(node);
 
-      // 5. Khởi tạo luồng truyền phát từ Google Drive API
-      const driveUrl = `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
       const rangeHeader = request.headers.get("Range");
 
-      const headers = {
-        "Authorization": `Bearer ${accessToken}`,
-      };
-      if (rangeHeader) {
-        headers["Range"] = rangeHeader;
-      }
-
-      // Thử tải tệp thông thường từ Google Server
-      let driveResponse = await fetch(driveUrl, { headers });
-
-      // Nếu gặp lỗi bị hạn chế tải xuống (403 Forbidden hoặc 401 do chính sách Google Drive), tự động chạy Bypass ngay tại Edge
-      if (driveResponse.status === 403 || driveResponse.status === 401) {
-        console.warn(`=> [Edge Bypass] Phát hiện File ID ${id} bị giới hạn tải (Status ${driveResponse.status}). Đang tiến hành Bypass...`);
+      // 5. Khởi tạo luồng truyền phát (Ưu tiên Bypass Stream tốc độ cao cho Video, tự động fallback cho PDF/Docs)
+      let driveResponse;
+      try {
+        // Thử kết nối luồng phát tốc độ cao (Bypass qua Google Video Server)
         driveResponse = await getBypassStream(node, id, rangeHeader);
+        if (driveResponse.status >= 400) {
+          throw new Error(`Bypass stream returned status ${driveResponse.status}`);
+        }
+      } catch (bypassErr) {
+        // Tự động chuyển về luồng tải thường từ Google Drive API (đối với tài liệu PDF, Docs... hoặc khi bypass lỗi)
+        const driveUrl = `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
+        const headers = {
+          "Authorization": `Bearer ${accessToken}`,
+        };
+        if (rangeHeader) {
+          headers["Range"] = rangeHeader;
+        }
+        driveResponse = await fetch(driveUrl, { headers });
       }
 
       // Gộp các header CORS và thông tin phân đoạn
