@@ -22,10 +22,6 @@ const videoplaybackCache = new Map();
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const id = url.searchParams.get("id");
-    const token = url.searchParams.get("token");
-
     // 1. Cấu hình CORS Header cho mạng phân phối biên
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -34,40 +30,44 @@ export default {
       "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
     };
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
-    }
-
-    if (!id || !token) {
-      return new Response("Missing id or token parameter", { status: 400, headers: corsHeaders });
-    }
-
-    // 2. Xác thực chữ ký token JWT + Hạn dùng + Khóa chặt File ID ngay tại Edge
-    const isValid = await verifyJWT(token, env.JWT_SECRET, id);
-    if (!isValid) {
-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-    }
-
-    // 3. Lấy cấu hình các Node Google Drive từ môi trường Worker (Hỗ trợ cả dạng String và JSON Binding)
-    let GOOGLE_NODES = [];
     try {
-      if (typeof env.GOOGLE_NODES === 'object' && env.GOOGLE_NODES !== null) {
-        GOOGLE_NODES = env.GOOGLE_NODES;
-      } else if (typeof env.GOOGLE_NODES === 'string') {
-        GOOGLE_NODES = JSON.parse(env.GOOGLE_NODES);
+      const url = new URL(request.url);
+      const id = url.searchParams.get("id");
+      const token = url.searchParams.get("token");
+
+      if (request.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
       }
-    } catch (err) {
-      return new Response(`Worker config parse error: ${err.message}`, { status: 500, headers: corsHeaders });
-    }
 
-    if (!Array.isArray(GOOGLE_NODES) || GOOGLE_NODES.length === 0) {
-      return new Response("Google nodes configuration missing or invalid format", { status: 500, headers: corsHeaders });
-    }
-    
-    // Tự động xoay vòng hoặc chọn Node ngẫu nhiên (Load Balancing)
-    const node = GOOGLE_NODES[Math.floor(Math.random() * GOOGLE_NODES.length)];
+      if (!id || !token) {
+        return new Response("Missing id or token parameter", { status: 400, headers: corsHeaders });
+      }
 
-    try {
+      // 2. Xác thực chữ ký token JWT + Hạn dùng + Khóa chặt File ID ngay tại Edge
+      const isValid = await verifyJWT(token, env.JWT_SECRET, id);
+      if (!isValid) {
+        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      }
+
+      // 3. Lấy cấu hình các Node Google Drive từ môi trường Worker (Hỗ trợ cả dạng String và JSON Binding)
+      let GOOGLE_NODES = [];
+      try {
+        if (typeof env.GOOGLE_NODES === 'object' && env.GOOGLE_NODES !== null) {
+          GOOGLE_NODES = env.GOOGLE_NODES;
+        } else if (typeof env.GOOGLE_NODES === 'string') {
+          GOOGLE_NODES = JSON.parse(env.GOOGLE_NODES);
+        }
+      } catch (err) {
+        return new Response(`Worker config parse error: ${err.message}`, { status: 500, headers: corsHeaders });
+      }
+
+      if (!Array.isArray(GOOGLE_NODES) || GOOGLE_NODES.length === 0) {
+        return new Response("Google nodes configuration missing or invalid format", { status: 500, headers: corsHeaders });
+      }
+      
+      // Tự động xoay vòng hoặc chọn Node ngẫu nhiên (Load Balancing)
+      const node = GOOGLE_NODES[Math.floor(Math.random() * GOOGLE_NODES.length)];
+
       // 4. Lấy Access Token từ Google OAuth qua Refresh Token (Đã tối ưu hóa Cache)
       const accessToken = await getAccessToken(node);
 
@@ -105,7 +105,7 @@ export default {
         headers: responseHeaders,
       });
     } catch (err) {
-      return new Response(`Worker stream error: ${err.message}`, { status: 500, headers: corsHeaders });
+      return new Response(`Worker stream error: ${err.message}\nStack: ${err.stack}`, { status: 500, headers: corsHeaders });
     }
   }
 };
@@ -221,21 +221,23 @@ async function getBypassStream(node, id, rangeHeader) {
     console.log(`=> [Edge Memory L1 HIT] File ID: ${id}`);
   } else {
     // 2. Thử lấy từ Cloudflare Regional Cache API L2 (Chung cho các Isolate cùng khu vực)
-    const cache = caches.default;
+    const cache = typeof caches !== 'undefined' ? caches.default : null;
     const cacheKey = new Request(`https://cache.local/videoplayback/${id}`);
     
-    try {
-      const cacheResponse = await cache.match(cacheKey);
-      if (cacheResponse) {
-        const data = await cacheResponse.json();
-        if (data.expiresAt > now) {
-          cached = data;
-          videoplaybackCache.set(id, cached);
-          console.log(`=> [Edge Cache API L2 HIT] File ID: ${id}`);
+    if (cache) {
+      try {
+        const cacheResponse = await cache.match(cacheKey);
+        if (cacheResponse) {
+          const data = await cacheResponse.json();
+          if (data.expiresAt > now) {
+            cached = data;
+            videoplaybackCache.set(id, cached);
+            console.log(`=> [Edge Cache API L2 HIT] File ID: ${id}`);
+          }
         }
+      } catch (e) {
+        console.warn("=> [Cache API Error] Lỗi đọc cache:", e.message);
       }
-    } catch (e) {
-      console.warn("=> [Cache API Error] Lỗi đọc cache:", e.message);
     }
 
     // 3. Cache Miss -> Gọi Google API và Lưu vào cả 2 lớp Cache
@@ -288,18 +290,20 @@ async function getBypassStream(node, id, rangeHeader) {
       videoplaybackCache.set(id, cached);
 
       // Lưu L2 Cache API
-      try {
-        const cacheSeconds = Math.max(60, Math.floor((expiresAt - now) / 1000));
-        const responseToCache = new Response(JSON.stringify(cached), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': `public, max-age=${cacheSeconds}`
-          }
-        });
-        await cache.put(cacheKey, responseToCache);
-        console.log(`=> [Edge Cache API L2 SET] Đã lưu cache cho File ID: ${id} trong ${cacheSeconds}s`);
-      } catch (e) {
-        console.warn("=> [Cache API Error] Lỗi ghi cache:", e.message);
+      if (cache) {
+        try {
+          const cacheSeconds = Math.max(60, Math.floor((expiresAt - now) / 1000));
+          const responseToCache = new Response(JSON.stringify(cached), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': `public, max-age=${cacheSeconds}`
+            }
+          });
+          await cache.put(cacheKey, responseToCache);
+          console.log(`=> [Edge Cache API L2 SET] Đã lưu cache cho File ID: ${id} trong ${cacheSeconds}s`);
+        } catch (e) {
+          console.warn("=> [Cache API Error] Lỗi ghi cache:", e.message);
+        }
       }
     }
   }
